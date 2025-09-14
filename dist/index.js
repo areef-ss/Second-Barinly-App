@@ -1,7 +1,8 @@
 import express from "express";
-import { ConetentModel, UserModel } from "./db.js";
+import { ConetentModel, LinkModel, UserModel } from "./db.js";
 import jwt from "jsonwebtoken";
 import { UserMiddleware } from "./middleware.js";
+import { random } from "./utils.js";
 const app = express();
 app.use(express.json());
 const JWT_PASSWORD = "Areef1ar@";
@@ -20,7 +21,7 @@ app.post("/api/v1/signup", async (req, res) => {
         res.status(500).json({ error: "Signup failed" });
     }
 });
-app.get("/api/v1/signin", async (req, res) => {
+app.post("/api/v1/signin", async (req, res) => {
     const username = req.body.username;
     const password = req.body.password;
     const existingUser = await UserModel.findOne({
@@ -32,7 +33,7 @@ app.get("/api/v1/signin", async (req, res) => {
             id: existingUser._id
         }, JWT_PASSWORD);
         res.json({
-            token
+            token,
         });
     }
     else {
@@ -49,7 +50,9 @@ app.post("/api/v1/content", UserMiddleware, async (req, res) => {
         title,
         //@ts-ignore
         userId: req.userId,
-        tags: []
+        tags: [],
+        //@ts-ignore
+        Author: req.userId
     });
     return res.json({
         message: "Conetent added"
@@ -69,6 +72,70 @@ app.get("/api/v1/content", UserMiddleware, async (req, res) => {
         console.error(err);
         res.json({ error: "Internal Server Error" });
     }
+});
+app.delete("/api/v1/content", UserMiddleware, async (req, res) => {
+    //@ts-ignore
+    const contentId = req.body.contentId;
+    await ConetentModel.deleteMany({
+        contentId,
+        userId: req.body.userId
+    });
+    res.json({
+        message: "deleted"
+    });
+});
+app.post("/api/v1/brain/share", UserMiddleware, async (req, res) => {
+    const shareId = req.body.share;
+    if (shareId) {
+        const existingUser = await LinkModel.findOne({
+            //@ts-ignore
+            userId: req.userId
+        });
+        if (existingUser) {
+            return res.status(400).json({
+                hash: existingUser.hash,
+                message: "Link already exists"
+            });
+        }
+        const hash = random(10);
+        await LinkModel.create({
+            //@ts-ignore
+            userId: req.userId,
+            hash: hash
+        });
+        res.json({
+            hash: hash,
+            message: "/share/" + hash
+        });
+    }
+    else {
+        await LinkModel.deleteOne({
+            //@ts-ignore
+            userId: req.userId
+        });
+        res.json({
+            message: "Removed link"
+        });
+    }
+});
+app.get("/api/v1/brain/:shareLink", async (req, res) => {
+    const hash = req.params.shareLink;
+    const link = await LinkModel.findOne({
+        hash
+    });
+    if (!link) {
+        return res.status(404).json({ message: "Link not found" });
+    }
+    const content = await ConetentModel.findOne({
+        userId: link.userId
+    });
+    const user = await UserModel.findOne({
+        _id: link.userId
+    });
+    res.status(200).json({
+        username: user?.username,
+        content: content
+    });
 });
 app.listen(3000, () => {
     console.log("Server is running on port 3000");

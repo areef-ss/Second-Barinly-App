@@ -1,22 +1,29 @@
-import type { NextFunction,Request,Response} from "express";
-import jwt from "jsonwebtoken"
+
+import type { Request, Response, NextFunction } from "express";
+import jwt from "jsonwebtoken";
 import { JWT_PASSWORD } from "./config.js";
 
+export const UserMiddleware = (req: Request, res: Response, next: NextFunction) => {
+    const token = req.headers["authorization"];
+    //console.log("Authorization Header:", token);
 
+    if (!token) {
+        return res.status(403).json({
+            message: "No authorization header found",
+        });
+    }
 
-export const UserMiddleware=(req:Request,res:Response,next:NextFunction)=>{
-    const header=req.headers["authorization"];
-    const decode=jwt.verify(header as string,JWT_PASSWORD);
-    if(decode){
-        //@ts-ignore
-        req.userId=decode.id;
+    try {
+        const decoded = jwt.verify(token, JWT_PASSWORD) as { id: string };
+
+        // @ts-ignore
+        req.userId = decoded.id;
+
         next();
+    } catch (err) {
+        console.error("JWT verification failed:", err);
+        return res.status(403).json({
+            message: "Invalid or expired token",
+        });
     }
-    else{
-        res.status(403).json({
-            message:"Incorrect user details"
-        })
-    }
-
-
-}
+};

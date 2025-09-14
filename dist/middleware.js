@@ -1,16 +1,23 @@
 import jwt from "jsonwebtoken";
 import { JWT_PASSWORD } from "./config.js";
 export const UserMiddleware = (req, res, next) => {
-    const header = req.headers["authorization"];
-    const decode = jwt.verify(header, JWT_PASSWORD);
-    if (decode) {
-        //@ts-ignore
-        req.userId = decode.id;
+    const token = req.headers["authorization"];
+    //console.log("Authorization Header:", token);
+    if (!token) {
+        return res.status(403).json({
+            message: "No authorization header found",
+        });
+    }
+    try {
+        const decoded = jwt.verify(token, JWT_PASSWORD);
+        // @ts-ignore
+        req.userId = decoded.id;
         next();
     }
-    else {
-        res.status(403).json({
-            message: "Incorrect user details"
+    catch (err) {
+        console.error("JWT verification failed:", err);
+        return res.status(403).json({
+            message: "Invalid or expired token",
         });
     }
 };
